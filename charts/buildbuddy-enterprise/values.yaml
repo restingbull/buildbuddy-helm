@@ -59,6 +59,21 @@ service:
   # loadBalancerIP:
   loadBalancerSourceRanges: []
 
+# gce ingress iap configuration
+iapIngress:
+  enabled: false
+  staticIpName: ""
+  httpHost: buildbuddy.example.com
+  grpcHost: buildbuddy-grpc.example.com
+  oauth:
+    http:
+      client: ""
+      secret: ""
+    grpc:
+      client: ""
+      secret: ""
+
+
 ## You have two options for exposing BuildBuddy with TLS over HTTPS and GRPCS.
 ## 1) Via the load balancer
 ##   - Point your DNS at the load balancer IP, you can get this by deploying and running:

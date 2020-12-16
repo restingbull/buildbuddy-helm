@@ -1,0 +1,103 @@
+{{ if .Values.iapIngress.enabled }}
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: '{{ include "buildbuddy.fullname" . }}-managed-cert'
+spec:
+  domains:
+    - {{ .Values.iapIngress.grpcHost }}
+    - {{ .Values.iapIngress.httpHost }}
+---
+apiVersion: "networking.k8s.io/v1beta1"
+kind: Ingress
+metadata:
+  name: '{{ include "buildbuddy.fullname" . }}-ingress'
+  labels:
+    app.kubernetes.io/name: {{ include "buildbuddy.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ include "buildbuddy.chart" . }}
+  annotations:
+    networking.gke.io/managed-certificates: '{{ include "buildbuddy.fullname" . }}-managed-cert'
+    kubernetes.io/ingress.global-static-ip-name: '{{ required "iap must have a static ip" .Values.iapIngress.staticIpName }}'
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.allow-http: "false"
+spec:
+  rules:
+  - host: {{ .Values.iapIngress.grpcHost }}
+    http:
+      paths:
+      - path: /*
+        backend:
+          serviceName: {{ include "buildbuddy.name" . }}
+          servicePort: grpc
+  - host: {{ .Values.iapIngress.httpHost }}
+    http:
+      paths:
+      - path: /*
+        backend:
+          serviceName: {{ include "buildbuddy.name" . }}
+          servicePort: http
+---
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: '{{ include "buildbuddy.fullname" . }}-http-oauth'
+  labels:
+    app.kubernetes.io/name: {{ include "buildbuddy.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ include "buildbuddy.chart" . }}
+data:
+  client_id: "{{ .Values.iapIngress.oauth.http.client | b64enc }}"
+  client_secret:  '{{ .Values.iapIngress.oauth.http.secret | b64enc  }}'
+---
+apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: '{{ include "buildbuddy.fullname" . }}-grpc-oauth'
+  labels:
+    app.kubernetes.io/name: {{ include "buildbuddy.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ include "buildbuddy.chart" . }}
+data:
+  client_id: "{{ .Values.iapIngress.oauth.grpc.client | b64enc }}"
+  client_secret:  "{{ .Values.iapIngress.oauth.grpc.secret | b64enc }}"
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: '{{ include "buildbuddy.fullname" . }}-http-backend-config'
+  namespace: default
+spec:
+  iap:
+    enabled: true
+    oauthclientCredentials:
+      secretName: '{{ include "buildbuddy.fullname" . }}-http-oauth'
+  # route all health requests to the http server, as grpc doesn't tolerate them.
+  healthCheck:
+    port: 8080
+    type: HTTP
+    requestPath: /healthz?server-type=buildbuddy-server
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: '{{ include "buildbuddy.fullname" . }}-grpc-backend-config'
+  namespace: default
+spec:
+  iap:
+    enabled: true
+    oauthclientCredentials:
+      secretName: '{{ include "buildbuddy.fullname" . }}-grpc-oauth'
+  # route all health requests to the http server, as grpc doesn't tolerate them.
+  healthCheck:
+    port: 8080
+    type: HTTP
+    requestPath: /healthz?server-type=buildbuddy-server
+---
+{{ end }}

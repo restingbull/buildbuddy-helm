@@ -2,9 +2,15 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "buildbuddy.name" . }}
-{{- if .Values.service.annotations }}
+{{- if or .Values.service.annotations .Values.iapIngress.enabled}}
   annotations:
+{{- if .Values.iapIngress.enabled }}
+    beta.cloud.google.com/backend-config: '{ "ports": { "grpc": "{{ include "buildbuddy.fullname" . }}-grpc-backend-config", "grpcs": "{{ include "buildbuddy.fullname" . }}-grpc-backend-config", "http": "{{ include "buildbuddy.fullname" . }}-http-backend-config", "https": "{{ include "buildbuddy.fullname" . }}-http-backend-config"} }'
+    cloud.google.com/app-protocols: '{"grpc":"HTTP2", "grpcs":"HTTP2"}'
+{{- end }}
+{{- if .Values.service.annotations }}
 {{ toYaml .Values.service.annotations | indent 4 }}
+{{- end }}
 {{- end }}
   labels:
     app.kubernetes.io/name: {{ include "buildbuddy.name" . }}
